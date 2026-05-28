@@ -13,15 +13,16 @@ app.use(cors());
 app.use(express.json());
 
 const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
-const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY as string,
-});
+
 
 app.get("/", (req : Request, res : Response) => {
   res.send("Kemini API running");
 });
 
 app.post('/api/chat', async (req: Request, res: Response) => {
+  const ai = new GoogleGenAI({
+  apiKey: process.env.GEMINI_API_KEY as string,
+});
   try {
     const { prompt } = req.body;
 
