@@ -3,4 +3,3 @@
 netlify.toml
 node_modules
 .env
-Dockerfile
