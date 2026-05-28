@@ -7,14 +7,10 @@ import OpenAI from 'openai';
 dotenv.config();
 
 const app: Application = express();
-const PORT = process.env.PORT || "";
+const PORT = Number(process.env.PORT) || 3000;
 
 app.use(cors());
 app.use(express.json());
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
 
 const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
 const ai = new GoogleGenAI({
@@ -57,60 +53,8 @@ app.post('/api/chat', async (req: Request, res: Response) => {
   }
 });
 
-app.post("/ussd", async (req: Request, res: Response) => {
-  const { text } = req.body;
 
-  let response = "";
 
-  try {
-
-    // Main menu
-    if (text === "") {
-      response = `CON Welcome to AI Assistant
-1. Chat with AI
-2. Exit`;
-    }
-
-    // User selected AI chat
-    else if (text === "1") {
-      response = "CON Enter your question";
-    }
-
-    // User entered question
-    else if (text.startsWith("1*")) {
-
-      const userQuestion = text.split("*")[1];
-
-      const aiResponse : any = await openai.chat.completions.create({
-        model: "gpt-4.1-mini",
-        messages: [
-          {
-            role: "user",
-            content: userQuestion,
-          },
-        ],
-        max_tokens: 100,
-      });
-
-      const answer : any =
-        aiResponse.choices[0].message.content || "No response";
-
-      response = `END ${answer.substring(0, 160)}`;
-    }
-
-    else {
-      response = "END Invalid option";
-    }
-
-    res.set("Content-Type", "text/plain");
-    res.send(response);
-
-  } catch (error) {
-    console.error(error);
-    res.send("END System error occurred");
-  }
-});
-
-app.listen(PORT, () => {
-  console.log(`🚀 Server running at http://localhost:${PORT}`);
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`🚀 Server running on port ${PORT}`);
 });
