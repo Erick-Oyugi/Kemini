@@ -21,6 +21,10 @@ const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY as string,
 });
 
+app.get("/", (req : Request, res : Response) => {
+  res.send("Kemini API running");
+});
+
 app.post('/api/chat', async (req: Request, res: Response) => {
   try {
     const { prompt } = req.body;
