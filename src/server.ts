@@ -3,14 +3,16 @@ import cors from 'cors';
 import * as dotenv from 'dotenv';
 import { GoogleGenAI } from "@google/genai";
 import OpenAI from 'openai';
+import { routes } from './routes/routes.js';
 
 dotenv.config();
 
 const app: Application = express();
-const PORT = Number(process.env.PORT) || 8080;
+const PORT = Number(process.env.PORT) || 3000;
 
 app.use(cors());
 app.use(express.json());
+app.use(routes)
 
 const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
 
