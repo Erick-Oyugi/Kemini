@@ -63,7 +63,7 @@ app.get("/", (req : Request, res : Response) => {
   res.send("Kemini API running");
 });
 
-app.post('/api/chat', async (req: Request, res: Response) => {
+app.post('/api/chat', upload.single('image'),async (req: Request, res: Response) => {
 const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY as string,
 });
@@ -74,6 +74,9 @@ const openai = new OpenAI({
   try {
     const { prompt } = req.body;
     const imageFile = req.file;
+
+
+console.log(prompt)
 
 if (!prompt || typeof prompt !== 'string') {
       console.log("Valid text prompt is required");
@@ -109,25 +112,44 @@ if (!prompt || typeof prompt !== 'string') {
   } catch (error : any) {
 
   // Checking both error.status and error.statusCode depending on SDK version
+  console.error("Gemini API Error details:", error);
     const statusCode = error.status || error.statusCode || (error.response && error.response.status);
 
     if (statusCode === 429) {
-      console.warn("⚠️ Gemini Rate limit hit (429)! Redirecting traffic to ChatGPT...");
+      console.warn("⚠️ Gemini Rate limit hit! Redirecting traffic to ChatGPT...");
+
       try {
-    const userMessageContent = typeof req.body.prompt === 'string' ? req.body.prompt : "Hello";
-    const gptResponse : any = await openai.chat.completions.create({
-          model: "gpt-4o-mini",
-          messages: [
-            { 
-              role: "user", 
-              content: userMessageContent // TypeScript is now guaranteed this is a string, not a function!
-            }
-          ],
-        });
-        const gptText = gptResponse.choices[0].message.content;
-        console.log("✅ Successfully resolved using ChatGPT fallback.");
+        const userMessageContent = typeof req.body.prompt === 'string' ? req.body.prompt : "Analyze this payload";
         
-        // Return matching structure so your React frontend doesn't break
+        // --- CHATGPT FALLBACK HANDLING ---
+        const gptMessages: any[] = [];
+
+        // If an image exists, format it to match OpenAI's specific vision object contract
+        if (req.file) {
+          const base64Image = req.file.buffer.toString("base64");
+          gptMessages.push({
+            role: "user",
+            content: [
+              { type: "text", text: userMessageContent },
+              {
+                type: "image_url",
+                image_url: {
+                  url: `data:${req.file.mimetype};base64,${base64Image}`,
+                },
+              },
+            ],
+          });
+        } else {
+          gptMessages.push({ role: "user", content: userMessageContent });
+        }
+
+        const gptResponse : any = await openai.chat.completions.create({
+          model: "gpt-4o-mini", // Supports text and image inputs out of the box
+          messages: gptMessages,
+        });
+
+        const gptText = gptResponse.choices[0].message.content;
+        console.log("✅ Successfully resolved using ChatGPT vision fallback.");
         return res.json({ reply: gptText });
 
       } catch (openAiError: any) {
