@@ -68,10 +68,6 @@ app.post('/api/chat', upload.single('image'), async (req: Request, res: Response
     apiKey: process.env.GEMINI_API_KEY as string,
   });
 
-  const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
-  });
-
   try {
     const { prompt } = req.body;
     const imageFile = req.file;
@@ -92,7 +88,8 @@ app.post('/api/chat', upload.single('image'), async (req: Request, res: Response
       contentsPayload.push(imagePart);
     }
 
-    const response = await ai.models.generateContent({
+    // --- PRIMARY ROUTE: GEMINI 2.5 FLASH ---
+    const response : any = await ai.models.generateContent({
       model: "gemini-2.5-flash",
       contents: contentsPayload
     });
@@ -103,11 +100,9 @@ app.post('/api/chat', upload.single('image'), async (req: Request, res: Response
   } catch (error: any) {
     console.error("Gemini API Error details:", error);
     
-    // Extract numerical code OR pull from raw string payload
     const statusCode = error.status || error.statusCode || (error.response && error.response.status);
     const errString = error.toString() || error.message || "";
 
-    // FIX: Changed '&&' to '||' and added string matching for the raw Gemini APIError string payload
     const isRateLimitedOrUnavailable = 
       statusCode === 429 || 
       statusCode === 503 || 
@@ -116,61 +111,47 @@ app.post('/api/chat', upload.single('image'), async (req: Request, res: Response
       errString.includes("UNAVAILABLE") ||
       errString.includes("high demand");
 
+    // --- FAILOVER ROUTE: GEMMA ---
     if (isRateLimitedOrUnavailable) {
-      console.warn("⚠️ Gemini Rate limit/Overload hit! Redirecting traffic to ChatGPT...");
+      console.warn("⚠️ Gemini Primary overloaded! Seamlessly rerouting traffic to Gemma...");
 
       try {
-        const userMessageContent = typeof req.body.prompt === 'string' ? req.body.prompt : "Analyze this payload";
-        const gptMessages: any[] = [];
+        // FIX: Safely re-extract and trim the prompt directly from the request body inside this block
+        const fallbackPrompt = typeof req.body.prompt === 'string' ? req.body.prompt.trim() : "Analyze this context";
+        let gemmaPrompt = fallbackPrompt;
 
-        // If an image exists, format it to match OpenAI's specific vision object contract
+        // If an image was attached, append a note since Gemma is a text-only model
         if (req.file) {
-          const base64Image = req.file.buffer.toString("base64");
-          gptMessages.push({
-            role: "user",
-            content: [
-              { type: "text", text: userMessageContent },
-              {
-                type: "image_url",
-                image_url: {
-                  url: `data:${req.file.mimetype};base64,${base64Image}`,
-                },
-              },
-            ],
-          });
-        } else {
-          gptMessages.push({ role: "user", content: userMessageContent });
+          gemmaPrompt = `[System Note: An image was attached by the user, but the primary multimodal engine is experiencing high traffic. Please answer their question based on text context alone.]\n\n${fallbackPrompt}`;
         }
 
-        const gptResponse: any = await openai.chat.completions.create({
-          model: "gpt-4o-mini",
-          messages: gptMessages,
+        // Call Gemma using your existing 'ai' instance
+        const gemmaResponse = await ai.models.generateContent({
+          model: "gemma-4-26b-a4b-it",
+          contents: gemmaPrompt,
         });
 
-        const gptText = gptResponse.choices[0].message.content;
-        console.log("✅ Successfully resolved using ChatGPT vision fallback.");
+        console.log("✅ Successfully resolved using Gemma fallback.");
         
-        // Pass a 'provider' tag back to the user interface to trigger a notification if desired
         return res.json({ 
-          reply: gptText, 
-          provider: 'openai',
-          fallbackNotice: 'Traffic rerouted to OpenAI due to heavy Gemini demand.'
+          reply: gemmaResponse.text, 
+          provider: 'gemma',
+          fallbackNotice: 'Traffic rerouted to Gemma due to heavy Gemini demand.'
         });
 
-      } catch (openAiError: any) {
-        console.error("❌ Secondary Failover to OpenAI failed:", openAiError);
-        return res.status(502).json({ error: "Both Gemini and ChatGPT failover failed." });
+      } catch (gemmaError: any) {
+        console.error("❌ Secondary Failover to Gemma failed:", gemmaError);
+        return res.status(502).json({ error: "Both Gemini and Gemma failover chains failed." });
       }
     }
 
-    // For any other unexpected errors (400, auth problems, etc.)
+    // For any other unexpected errors (400, bad keys, etc.)
     return res.status(500).json({ 
       error: "Internal Server Error",
       data: error.message
     });
-  }
+  };
 });
-
 
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 Server running on port ${PORT}`);
