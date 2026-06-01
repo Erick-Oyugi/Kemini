@@ -6,6 +6,7 @@ import OpenAI from 'openai';
 import { routes } from './routes/routes.js';
 import os from 'os'
 import { username } from 'username';
+import multer from 'multer'
 
 
 
@@ -29,6 +30,23 @@ console.log(machineUser); // => 'erick'
 // const machineUser = userInfo.username;
 
 console.log(`Current machine user is: ${machineUser}`);
+
+
+const storage = multer.memoryStorage();
+const upload = multer({ 
+  storage: storage,
+  limits: { fileSize: 5 * 1024 * 1024 } // Strict 5MB upload limit
+});
+
+function fileToGenerativePart(buffer: Buffer, mimeType: string) {
+  return {
+    inlineData: {
+      data: buffer.toString("base64"),
+      mimeType
+    },
+  };
+}
+
 
 
 app.get('/api/system-user', (req, res) => {
@@ -55,6 +73,7 @@ const openai = new OpenAI({
 });
   try {
     const { prompt } = req.body;
+    const imageFile = req.file;
 
 if (!prompt || typeof prompt !== 'string') {
       console.log("Valid text prompt is required");
@@ -66,10 +85,22 @@ if (!prompt || typeof prompt !== 'string') {
     /**
      * FIX: Use ai.models.generateContent instead of getGenerativeModel.
      * In the new SDK, 'text' is a property on the response, not a function call.
+     * 
+     * 
+     *
      */
+    const contentsPayload: any[] = [cleanUserPrompt];
+
+    if (imageFile) {
+      console.log(`Processing attached image: ${imageFile.originalname} (${imageFile.mimetype})`);
+      const imagePart = fileToGenerativePart(imageFile.buffer, imageFile.mimetype);
+      contentsPayload.push(imagePart);
+    }
+
+    
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash", // Use 1.5-flash or the latest 2.0-flash
-      contents: cleanUserPrompt
+      contents: contentsPayload
     });
 
     console.log(response.text)
@@ -106,7 +137,9 @@ if (!prompt || typeof prompt !== 'string') {
     }
 
     // For any other unexpected errors (500, 400, auth problems, etc.)
-    return res.status(500).json({ error: "Internal Server Error" });
+    return res.status(500).json({ error: "Internal Server Error" ,
+      data: error.message
+    });
   }
 });
 
