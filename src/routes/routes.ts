@@ -1,8 +1,11 @@
 import express from 'express'
 import { autoIntegrateMpesaWorkspace } from '../controller/mpesa/mpesaworkspace.js'
 import { handleSTKPushIntegration } from '../controller/mpesa/stkpush.js'
+import { googleAuthentication } from '../controller/authentication/google.js'
 
 export const routes = express()
 
 // routes.post('/mpesa', autoIntegrateMpesaWorkspace)
 routes.post('/api/v1/integration/stk-push', handleSTKPushIntegration)
+routes.post('/api/v1/auth/google', googleAuthentication)
+
