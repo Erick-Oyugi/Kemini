@@ -4,6 +4,7 @@ import * as dotenv from 'dotenv';
 import { GoogleGenAI } from "@google/genai";
 import OpenAI from 'openai';
 import { routes } from './routes/routes.js';
+import os from 'os'
 
 dotenv.config();
 
@@ -16,6 +17,21 @@ app.use(routes)
 
 const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
 
+const userInfo = os.userInfo();
+
+const machineUser = userInfo.username;
+
+console.log(`Current machine user is: ${machineUser}`);
+
+
+app.get('/api/system-user', (req, res) => {
+  try {
+    const user = os.userInfo().username;
+    res.json({ username: user });
+  } catch (error) {
+    res.status(500).json({ error: "Could not read machine username" });
+  }
+});
 
 app.get("/", (req : Request, res : Response) => {
   res.send("Kemini API running");
