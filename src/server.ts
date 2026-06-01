@@ -63,35 +63,27 @@ app.get("/", (req : Request, res : Response) => {
   res.send("Kemini API running");
 });
 
-app.post('/api/chat', upload.single('image'),async (req: Request, res: Response) => {
-const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY as string,
-});
+app.post('/api/chat', upload.single('image'), async (req: Request, res: Response) => {
+  const ai = new GoogleGenAI({
+    apiKey: process.env.GEMINI_API_KEY as string,
+  });
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+  const openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+  });
+
   try {
     const { prompt } = req.body;
     const imageFile = req.file;
 
+    console.log(prompt);
 
-console.log(prompt)
-
-if (!prompt || typeof prompt !== 'string') {
+    if (!prompt || typeof prompt !== 'string') {
       console.log("Valid text prompt is required");
       return res.status(400).json({ error: "Prompt string is required" });
     }
 
     const cleanUserPrompt: string = prompt.trim();
-
-    /**
-     * FIX: Use ai.models.generateContent instead of getGenerativeModel.
-     * In the new SDK, 'text' is a property on the response, not a function call.
-     * 
-     * 
-     *
-     */
     const contentsPayload: any[] = [cleanUserPrompt];
 
     if (imageFile) {
@@ -100,28 +92,35 @@ if (!prompt || typeof prompt !== 'string') {
       contentsPayload.push(imagePart);
     }
 
-    
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash", // Use 1.5-flash or the latest 2.0-flash
+      model: "gemini-2.5-flash",
       contents: contentsPayload
     });
 
-    console.log(response.text)
+    console.log(response.text);
+    return res.json({ reply: response.text, provider: 'gemini' });
 
-    res.json({ reply: response.text });
-  } catch (error : any) {
-
-  // Checking both error.status and error.statusCode depending on SDK version
-  console.error("Gemini API Error details:", error);
+  } catch (error: any) {
+    console.error("Gemini API Error details:", error);
+    
+    // Extract numerical code OR pull from raw string payload
     const statusCode = error.status || error.statusCode || (error.response && error.response.status);
+    const errString = error.toString() || error.message || "";
 
-    if (statusCode === 429) {
-      console.warn("⚠️ Gemini Rate limit hit! Redirecting traffic to ChatGPT...");
+    // FIX: Changed '&&' to '||' and added string matching for the raw Gemini APIError string payload
+    const isRateLimitedOrUnavailable = 
+      statusCode === 429 || 
+      statusCode === 503 || 
+      errString.includes("429") ||
+      errString.includes("503") ||
+      errString.includes("UNAVAILABLE") ||
+      errString.includes("high demand");
+
+    if (isRateLimitedOrUnavailable) {
+      console.warn("⚠️ Gemini Rate limit/Overload hit! Redirecting traffic to ChatGPT...");
 
       try {
         const userMessageContent = typeof req.body.prompt === 'string' ? req.body.prompt : "Analyze this payload";
-        
-        // --- CHATGPT FALLBACK HANDLING ---
         const gptMessages: any[] = [];
 
         // If an image exists, format it to match OpenAI's specific vision object contract
@@ -143,23 +142,30 @@ if (!prompt || typeof prompt !== 'string') {
           gptMessages.push({ role: "user", content: userMessageContent });
         }
 
-        const gptResponse : any = await openai.chat.completions.create({
-          model: "gpt-4o-mini", // Supports text and image inputs out of the box
+        const gptResponse: any = await openai.chat.completions.create({
+          model: "gpt-4o-mini",
           messages: gptMessages,
         });
 
         const gptText = gptResponse.choices[0].message.content;
         console.log("✅ Successfully resolved using ChatGPT vision fallback.");
-        return res.json({ reply: gptText });
+        
+        // Pass a 'provider' tag back to the user interface to trigger a notification if desired
+        return res.json({ 
+          reply: gptText, 
+          provider: 'openai',
+          fallbackNotice: 'Traffic rerouted to OpenAI due to heavy Gemini demand.'
+        });
 
       } catch (openAiError: any) {
         console.error("❌ Secondary Failover to OpenAI failed:", openAiError);
-        return res.status(500).json({ error: "Both Gemini and ChatGPT failover failed." });
+        return res.status(502).json({ error: "Both Gemini and ChatGPT failover failed." });
       }
     }
 
-    // For any other unexpected errors (500, 400, auth problems, etc.)
-    return res.status(500).json({ error: "Internal Server Error" ,
+    // For any other unexpected errors (400, auth problems, etc.)
+    return res.status(500).json({ 
+      error: "Internal Server Error",
       data: error.message
     });
   }
