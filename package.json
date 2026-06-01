@@ -27,6 +27,7 @@
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "openai": "^6.39.0",
-    "serverless-http": "^4.0.0"
+    "serverless-http": "^4.0.0",
+    "username": "^7.0.0"
   }
 }
