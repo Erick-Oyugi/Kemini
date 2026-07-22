@@ -16,21 +16,28 @@
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/multer": "^2.1.0",
-    "@types/node": "^25.6.0",
+    "@types/node": "^25.9.4",
     "ts-node-dev": "^2.0.0",
     "tsx": "^4.21.0",
     "typescript": "^6.0.3"
   },
   "dependencies": {
     "@google/genai": "^1.50.1",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/jsonwebtoken": "^9.0.10",
     "axios": "^1.16.1",
+    "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "express-rate-limit": "^8.6.0",
+    "firebase": "^12.15.0",
     "google-auth-library": "^10.6.2",
+    "jsonwebtoken": "^9.0.3",
     "multer": "^2.1.1",
     "openai": "^6.39.0",
     "serverless-http": "^4.0.0",
+    "socket.io": "^4.8.3",
     "username": "^7.0.0"
   }
 }
